@@ -7,6 +7,9 @@ import type { ListReviewsOptions, ReplyResult, Review } from "../types/provider.
 const API_BASE = "https://androidpublisher.googleapis.com/androidpublisher/v3";
 const ANDROID_PUBLISHER_SCOPE = "https://www.googleapis.com/auth/androidpublisher";
 const MAX_PAGE_SIZE = 100;
+// Google documents a 200 GET/hour quota for reviews, enforced separately per app.
+// A 20 second minimum interval keeps this process below that limit (180 GET/hour).
+const MIN_REVIEW_GET_INTERVAL_MS = 20_000;
 
 interface GoogleTimestamp {
   seconds?: string | number;
@@ -80,6 +83,34 @@ export class GooglePlayProvider extends BaseReviewProvider {
   readonly id = "google-play";
   readonly name = "Google Play Store";
   private auth?: GoogleAuth;
+  private readonly lastReviewGetAt = new Map<string, number>();
+  private readonly reviewGetQueues = new Map<string, Promise<void>>();
+
+  private async withReviewGetRateLimit<T>(packageName: string, action: () => Promise<T>): Promise<T> {
+    const previous = this.reviewGetQueues.get(packageName) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolveQueue) => {
+      release = resolveQueue;
+    });
+    const queued = previous.then(() => current);
+    this.reviewGetQueues.set(packageName, queued);
+
+    await previous;
+    try {
+      const lastRequestAt = this.lastReviewGetAt.get(packageName) ?? 0;
+      const waitMs = lastRequestAt + MIN_REVIEW_GET_INTERVAL_MS - Date.now();
+      if (waitMs > 0) {
+        await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+      }
+      this.lastReviewGetAt.set(packageName, Date.now());
+      return await action();
+    } finally {
+      release();
+      if (this.reviewGetQueues.get(packageName) === queued) {
+        this.reviewGetQueues.delete(packageName);
+      }
+    }
+  }
 
   private async serviceAccountCredentials(): Promise<JWTInput | undefined> {
     const configured = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON?.trim();
@@ -152,17 +183,21 @@ export class GooglePlayProvider extends BaseReviewProvider {
     );
     url.searchParams.set("maxResults", String(MAX_PAGE_SIZE));
     if (pageToken) url.searchParams.set("token", pageToken);
-    return this.apiRequest<GoogleReviewsResponse>(url.href);
+    return this.withReviewGetRateLimit(packageName, () =>
+      this.apiRequest<GoogleReviewsResponse>(url.href),
+    );
   }
 
   private async reviewForPackage(packageName: string, reviewId: string): Promise<GoogleReview> {
     const url = `${API_BASE}/applications/${encodeURIComponent(packageName)}/reviews/${encodeURIComponent(reviewId)}`;
-    const token = await this.accessToken();
-    const response = await request(url, {
-      headers: { Authorization: `Bearer ${token}` },
+    return this.withReviewGetRateLimit(packageName, async () => {
+      const token = await this.accessToken();
+      const response = await request(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw apiError("Google Play Developer", response);
+      return (await response.json()) as GoogleReview;
     });
-    if (!response.ok) throw apiError("Google Play Developer", response);
-    return (await response.json()) as GoogleReview;
   }
 
   private mapReview(packageName: string, review: GoogleReview): Review {

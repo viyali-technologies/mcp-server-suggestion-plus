@@ -85,7 +85,7 @@ Both must succeed. Do not run build, install, git clone, or any local commands.
 Show the user:
 - Detected agent and the exact config file path that was written/updated
 - The final MCP config (showing what was written)
-- Credential guidance (brief): ADC optional; set `GOOGLE_APPLICATION_CREDENTIALS` to absolute path of service account JSON if not using ADC; use Android package name as `app_id` in Google Play calls (google-play). Note: Google Play replies and App Store not implemented yet.
+- Credential guidance (brief): ADC optional; set `GOOGLE_APPLICATION_CREDENTIALS` to absolute path of service account JSON if not using ADC; use the Android package name as `app_id` for one Google Play app, or call `list_reviews` once with `platform: "google-play"` and `app_ids` for multiple apps (up to 50 package names). The tool makes separate upstream requests per app and combines the results. Note: Google Play replies and App Store are not implemented yet.
 - How to restart their AI agent to load the MCP server
 - Confirmation that setup used only `npx -y mcp-server-suggestion-plus`
 
