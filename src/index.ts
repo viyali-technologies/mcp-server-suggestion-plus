@@ -31,7 +31,7 @@ const providerSetup: Record<
     implementationStatus: "implemented",
     requiredConfiguration: [],
     implementationNotes: [
-      "Supply one Android app package name as app_id, or multiple package names as app_ids when calling list_reviews with platform set to google-play.",
+      "For list_reviews with platform set to google-play, pass one or more Android app package names as an array in app_ids.",
       "Google Play review GET requests are limited to 200 per hour per app; the adapter spaces requests for each app at least 20 seconds apart.",
       "Authentication uses Google Application Default Credentials, including GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON as a fallback.",
       "Google Play review replies are not enabled by this adapter yet.",
@@ -75,48 +75,32 @@ function createMcpServer(): McpServer {
     "list_reviews",
     {
       description:
-        "List customer reviews, optionally filtered by platform, one app or multiple apps, and star rating. For multiple Google Play apps, set platform to google-play and pass Android package names in app_ids; one MCP call fans out to one or more Google API requests per app.",
-      inputSchema: {
-        platform: z.string().optional().describe("Provider ID, such as google-play or app-store."),
-        app_id: z.string().optional().describe("One platform-specific application identifier. For Google Play, use the Android package name."),
+        "List customer reviews for one or more apps, optionally filtered by star rating. platform and app_ids are required. For Google Play, pass Android package names in app_ids as an array. Use a one-item array for one app. One MCP call fans out to one or more Google API requests per app.",
+      inputSchema: z.object({
+        platform: z.string().describe("Required provider ID, such as google-play or app-store."),
         app_ids: z
           .array(z.string().trim().min(1))
           .min(1)
           .max(50)
-          .optional()
-          .describe("Up to 50 platform-specific application identifiers. Currently supported for Google Play; requires platform=google-play. Do not combine with app_id."),
-        rating: z.number().int().min(1).max(5).optional(),
-        limit: z.number().int().min(1).max(100).default(20).describe("Maximum reviews to return per app (1–100; default 20)."),
-      },
+          .describe("Required array of one or more platform-specific application identifiers, up to 50. Currently supported for Google Play; use a one-item array for one app and set platform=google-play."),
+        rating: z.number().int().min(1).max(5).nullish(),
+        limit: z.number().int().min(1).max(100).nullish().default(10).describe("Maximum reviews to return per app (1–100; default 10)."),
+      }),
     },
-    async ({ platform, app_id, app_ids, rating, limit }) => {
+    async ({ platform, app_ids, rating, limit }) => {
       try {
-        if (app_id !== undefined && app_ids !== undefined) {
-          throw new Error("Use either app_id or app_ids, not both.");
-        }
-        if (app_ids !== undefined && platform !== "google-play") {
+        const provider = getProvider(platform);
+        if (provider.id !== "google-play") {
           throw new Error("app_ids is currently supported only when platform is set to google-play.");
         }
 
-        const targets = platform ? [getProvider(platform)] : providers;
+        const options = {
+          ...(rating == null ? {} : { rating }),
+          limit: limit ?? 10,
+        };
+        const uniqueAppIds = [...new Set(app_ids)];
         const results = await Promise.all(
-          targets.map(async (provider) => {
-            const options = {
-              ...(rating === undefined ? {} : { rating }),
-              limit,
-            };
-            if (app_ids !== undefined) {
-              const uniqueAppIds = [...new Set(app_ids)];
-              const appResults = await Promise.all(
-                uniqueAppIds.map((appId) => provider.listReviews({ ...options, appId })),
-              );
-              return appResults.flat();
-            }
-            return provider.listReviews({
-              ...options,
-              ...(app_id === undefined ? {} : { appId: app_id }),
-            });
-          }),
+          uniqueAppIds.map((appId) => provider.listReviews({ ...options, appId })),
         );
         const reviews: Review[] = results.flat();
         return {

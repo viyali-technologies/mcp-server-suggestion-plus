@@ -239,7 +239,7 @@ export class GooglePlayProvider extends BaseReviewProvider {
         "app_id is required for Google Play and must be the Android app package name.",
       );
     }
-    const limit = Math.min(Math.max(params.limit ?? 20, 1), MAX_PAGE_SIZE);
+    const limit = Math.min(Math.max(params.limit ?? 10, 1), MAX_PAGE_SIZE);
 
     const matching: Review[] = [];
     let pageToken: string | undefined;
