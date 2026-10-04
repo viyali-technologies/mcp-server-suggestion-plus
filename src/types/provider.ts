@@ -43,6 +43,6 @@ export interface ReviewProvider {
   readonly name: string;
   readonly supportsWrite: boolean;
   listReviews(params: ListReviewsOptions): Promise<Review[]>;
-  getReview(reviewId: string): Promise<Review>;
+  getReview(reviewId: string, appId?: string): Promise<Review>;
   replyToReview?(reviewId: string, replyText: string): Promise<ReplyResult>;
 }

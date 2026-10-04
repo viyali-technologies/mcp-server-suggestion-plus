@@ -1,6 +1,6 @@
 {
   "name": "mcp-server-suggestion-plus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for reading and replying to customer reviews across platforms.",
   "homepage": "https://suggestion.plus",
   "repository": {

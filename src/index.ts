@@ -28,12 +28,13 @@ const providerSetup: Record<
   }
 > = {
   "google-play": {
-    implementationStatus: "stub",
-    requiredConfiguration: ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
+    implementationStatus: "implemented",
+    requiredConfiguration: [],
     implementationNotes: [
-      "Build an account-wide app catalog of package names the authorized service account can access.",
-      "Fetch and aggregate reviews per package; reviews.list requires a package name for each request.",
-      "Authorize the service account for the app in Google Play Console.",
+      "Supply the Android app package name as app_id when calling Google Play review tools.",
+      "Authentication uses Google Application Default Credentials, including GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON as a fallback.",
+      "Google Play review replies are not enabled by this adapter yet.",
+      "Grant the service account access to the apps in Google Play Console.",
     ],
   },
   "app-store": {
@@ -110,11 +111,15 @@ function createMcpServer(): McpServer {
       inputSchema: {
         platform: z.string().describe("Provider ID, such as google-play or app-store."),
         review_id: z.string().min(1),
+        app_id: z
+          .string()
+          .optional()
+          .describe("Required for Google Play; use the Android app package name."),
       },
     },
-    async ({ platform, review_id }) => {
+    async ({ platform, review_id, app_id }) => {
       try {
-        const review = await getProvider(platform).getReview(review_id);
+        const review = await getProvider(platform).getReview(review_id, app_id);
         return {
           content: [{ type: "text", text: JSON.stringify(review, null, 2) }],
           structuredContent: { review },
@@ -160,12 +165,20 @@ function createMcpServer(): McpServer {
       inputSchema: {},
     },
     async () => {
-      const platforms = providers.map((provider) => {
+      const platforms = await Promise.all(providers.map(async (provider) => {
         const setup = providerSetup[provider.id];
         const requiredConfiguration = setup?.requiredConfiguration ?? [];
         const missingConfiguration = requiredConfiguration.filter(
           (key) => !process.env[key]?.trim(),
         );
+        if (
+          provider.id === "google-play" &&
+          !(await (provider as GooglePlayProvider).hasCredentials())
+        ) {
+          missingConfiguration.push(
+            "Application Default Credentials, GOOGLE_APPLICATION_CREDENTIALS, or GOOGLE_PLAY_SERVICE_ACCOUNT_JSON",
+          );
+        }
         const implementationStatus = setup?.implementationStatus ?? "stub";
         const configured = missingConfiguration.length === 0;
 
@@ -176,7 +189,7 @@ function createMcpServer(): McpServer {
           configured,
           implementationStatus,
           capabilities: {
-            read: false,
+            read: implementationStatus === "implemented",
             write: provider.supportsWrite,
           },
           status:
@@ -189,7 +202,7 @@ function createMcpServer(): McpServer {
           missingConfiguration,
           nextSteps: setup?.implementationNotes ?? [],
         };
-      });
+      }));
       return {
         content: [{ type: "text", text: JSON.stringify(platforms, null, 2) }],
         structuredContent: { platforms },
