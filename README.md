@@ -1,10 +1,17 @@
 # Suggestion+
-
 Website: [suggestion.plus](https://suggestion.plus) · npm: [`mcp-server-suggestion-plus`](https://www.npmjs.com/package/mcp-server-suggestion-plus) · source: [GitHub](https://github.com/viyali-technologies/mcp-server-suggestion-plus)
 
 An open-source Model Context Protocol (MCP) server for reading and replying to customer reviews across platforms.
 
 Google Play review reading is implemented. Apple App Store access and Google Play replies are not implemented yet.
+
+## One-Click Setup with AI Agent
+
+Copy and paste the prompt below into any AI coding agent (Claude Code, Cursor, Cline, RooCode, Continue, OpenCode, Windsurf, Gemini CLI, etc.). It will automatically clone, install, build, detect your agent, and configure the MCP server for you.
+
+[**Download AGENT_SETUP_PROMPT.md**](AGENT_SETUP_PROMPT.md)
+
+Or just copy the content of that file directly into your agent. No manual commands needed.
 
 ## For AI agents
 
