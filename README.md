@@ -10,7 +10,7 @@ Google Play review reading is implemented. Apple App Store access and Google Pla
 
 ### Apidog with the published npm package
 
-In Apidog, create an MCP endpoint and paste this configuration. Replace the credential path with the absolute path to the Google credentials file on the machine running Apidog. This configuration is for use after the package is published to npm.
+In Apidog, create an MCP endpoint and paste this configuration. Set credentials in the MCP server's `env` object; replace the credential path with the absolute path to the Google credentials file on the machine running Apidog. This configuration is for use after the package is published to npm.
 
 ```json
 {
@@ -25,6 +25,8 @@ In Apidog, create an MCP endpoint and paste this configuration. Replace the cred
   }
 }
 ```
+
+The `env` values are passed to the server process when Apidog launches it. Keep this MCP configuration private when it contains credentials. Do not pass credentials as tool arguments or include real credential values in the README.
 
 ### Apidog with a local clone
 
@@ -46,7 +48,7 @@ Before the npm package is published, build the clone with `npm run build`, then 
 }
 ```
 
-If local ADC is already configured, omit the `GOOGLE_APPLICATION_CREDENTIALS` entry.
+If local ADC is already configured, omit the `GOOGLE_APPLICATION_CREDENTIALS` entry. Keep the MCP configuration local and private when it contains credentials.
 
 Use this instruction when configuring an AI agent:
 
@@ -97,7 +99,7 @@ npm start
 
 `npm start` keeps running and waits for an MCP client over stdio. For a one-command setup and start from the clone, use `./install-and-run.sh` on macOS/Linux or `.\install-and-run.ps1` in Windows PowerShell. These scripts are for source users; the npm package uses `npx -y mcp-server-suggestion-plus` instead.
 
-When running from source, configure the MCP client to run `node` with the absolute path to `dist/index.js`. Copy `.env.example` to `.env` in the cloned repository to configure provider credentials.
+When running from source, configure the MCP client to run `node` with the absolute path to `dist/index.js`, and provide provider configuration through that MCP server entry's `env` object.
 
 To use the legacy HTTP+SSE transport, set `TRANSPORT=sse`. The server listens on `HOST` and `PORT`, with the event stream at `/sse` and MCP messages at `/messages`. For new remote deployments, consider migrating this starter to Streamable HTTP.
 
@@ -116,7 +118,7 @@ Provider IDs are `google-play` and `app-store`. To enable Google Play review rea
 2. Invite that service account in Play Console under **Users and permissions**, granting access to the apps and review permissions it needs. Google documents this setup in its [API getting started guide](https://developers.google.com/android-publisher/getting_started).
 3. For local development, use ADC. You can sign in as a Play Console user with `gcloud auth application-default login`, or impersonate the app's service account with `gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL --scopes=https://www.googleapis.com/auth/androidpublisher`. Service account impersonation requires the user to have permission to impersonate that account.
 4. Supply the Android package name as `app_id` when calling `list_reviews` or `get_review_details`.
-5. If using a credential file, set `GOOGLE_APPLICATION_CREDENTIALS` to its absolute path in the MCP server's STDIO environment. `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` remains an optional fallback accepting JSON contents or a file path. Keep service-account keys private; don't commit them or put them in a shared Apidog configuration.
+5. In Apidog, set `GOOGLE_APPLICATION_CREDENTIALS` to the credential file's absolute path in the MCP server's STDIO `env` settings. `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` remains an optional fallback accepting JSON contents or a file path. Keep credential values in private, local MCP configuration; don't commit them or include them in tool arguments.
 
 The review API requires a package name for each request, so the adapter takes it from `app_id` rather than maintaining a package list. In production on Google Cloud, use an attached service account and ADC instead of a long-lived key file. See Google's [ADC guidance](https://docs.cloud.google.com/docs/authentication/application-default-credentials) and [`reviews.list` reference](https://developers.google.com/android-publisher/api-ref/rest/v3/reviews/list).
 
@@ -136,7 +138,7 @@ Use the public repo: https://github.com/viyali-technologies/mcp-server-suggestio
 1. Clone it if needed, then install dependencies: `npm install`.
 2. Implement the App Store provider. For Google Play, add review replies if desired; the current reader uses ADC by default, accepts `GOOGLE_APPLICATION_CREDENTIALS` as the standard credential-file path, supports `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` as a fallback, and takes the app package name from `app_id`.
 3. Finish the MCP tools: `list_reviews` (all configured apps by default, optional app filter), `get_review_details`, `reply_to_review`, and `list_supported_platforms` (readiness, capabilities, required and missing config). Validate inputs with Zod. Keep credentials private.
-4. Preserve stdio and SSE modes and the shell/PowerShell launch scripts. Document credentials, permissions, and connection setup in README and `.env.example`. Show the AI host how to launch `node` with the absolute path to `dist/index.js` over stdio.
+4. Preserve stdio and SSE modes and the shell/PowerShell launch scripts. Document credentials, permissions, and connection setup in README and the MCP client configuration examples, with credentials supplied through the MCP server entry's `env` object. Show the AI host how to launch `node` with the absolute path to `dist/index.js` over stdio.
 5. Add Vitest tests with mocked API calls for mapping, multi-app listing, pagination, missing config, API errors, and replies. Do not require live credentials.
 6. Verify: run `npm run build` and `npm test`. Smoke-test MCP with `npx -y @modelcontextprotocol/inspector --cli node dist/index.js --method tools/list`, then call `list_supported_platforms`. Fix failures and report results and remaining limitations.
 ```
